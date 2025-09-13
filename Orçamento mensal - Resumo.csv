@@ -1,0 +1,41 @@
+,,,,,,,,,,,
+,PRIMEIROS PASSOS,,,,,,,OBSERVAÇÃO,,,
+,"Defina seu saldo inicial na célula L8 e personalize as categorias e os valores das despesas planejadas nas tabelas ""Renda"" e ""Despesas"" abaixo.",,,,,,,Só edite as células destacadas.,,,
+,,,,,,,,Tente não alterar as células que contêm uma fórmula. ,,,
+,"Quando você digitar dados na guia ""Transações"", esta página será atualizada automaticamente para mostrar um resumo das suas despesas no mês.",,,,,,,,,,
+,,,,,,,,,,,
+,,,,,,,,,,,
+,Orçamento mensal,,,,,,,,Saldo inicial: ,,R$1.000
+,,,,,,,,,,,
+,,,,,,,,,,,
+,,,,,,,,,,,
+,,,,,,,,,,,
+,,,,,,,,+50%,,,
+,,,,,,,,Aumento da economia total,,,
+,,,,,,,,R$500,,,
+,,,SALDO INICIAL , SALDO FINAL,,,,Economia do mês,,,
+,,,R$1.000,R$1.500,,,,,,,
+,,,,,,,,,,,
+,,,,,,,,,,,
+,Despesas,,,,,,Renda,,,,
+,Planejado,R$950,,,,,Planejado,R$1.450,,,
+,Real,R$1.000,,,,,Real,R$1.500,,,
+,,,,,,,,,,,
+,Despesas,,,,,,Renda,,,,
+,,,Planejado,Real,Diferença,,,,Planejado,Real,Diferença
+,Totais,,R$950,R$1.000,-R$50,,Totais,,R$1.450,R$1.500,R$50
+,,,,,,,,,,,
+,Alimentação,,R$0,R$0,R$0,,Poupança,,R$0,R$0,R$0
+,Presentes,,R$0,R$0,R$0,,Pagamento,,R$1.450,R$1.500,R$50
+,Saúde,,R$0,R$0,R$0,,Bônus,,R$0,R$0,R$0
+,Moradia,,R$950,R$1.000,-R$50,,Juros,,R$0,R$0,R$0
+,Transporte,,R$0,R$0,R$0,,Outros,,R$0,R$0,R$0
+,Pessoal,,R$0,R$0,R$0,,Categoria personalizada ,,R$0,R$0,R$0
+,Animais de estimação,,R$0,R$0,R$0,,,,,,
+,Serviços de utilidade pública,,R$0,R$0,R$0,,,,,,
+,Viagens,,R$0,R$0,R$0,,,,,,
+,Débito,,R$0,R$0,R$0,,,,,,
+,Outros,,R$0,R$0,R$0,,,,,,
+,Categoria personalizada 1,,R$0,R$0,R$0,,,,,,
+,Categoria personalizada 2,,R$0,R$0,R$0,,,,,,
+,Categoria personalizada 3,,R$0,R$0,R$0,,,,,,
