@@ -5,10 +5,9 @@ import { useParams, useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
 import { ChartRenderer } from "@/components/chart-renderer"
 import { ChartSuggestions } from "@/components/chart-suggestions"
-import { ChartCustomizer } from "@/components/chart-customizer"
+import { ChartTypeSelector } from "@/components/chart-type-selector"
 import { ArrowLeft, Database, FileSpreadsheet, TrendingUp, Plus } from "lucide-react"
 import type { DataAnalysis, ChartSuggestion } from "@/lib/data-analyzer"
 
@@ -31,10 +30,14 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedSuggestion, setSelectedSuggestion] = useState<ChartSuggestion | null>(null)
-  const [customizedSuggestion, setCustomizedSuggestion] = useState<ChartSuggestion | null>(null)
+  const [customChartConfig, setCustomChartConfig] = useState<{
+    chartType: string
+    xColumn: string
+    yColumn?: string
+    title: string
+  } | null>(null)
   const [chartData, setChartData] = useState<any[] | null>(null)
   const [savedCharts, setSavedCharts] = useState<SavedChart[]>([])
-  const [showCustomizer, setShowCustomizer] = useState(false)
 
   useEffect(() => {
     fetchAnalysis()
@@ -74,19 +77,29 @@ export default function DashboardPage() {
 
   const handleSelectSuggestion = (suggestion: ChartSuggestion) => {
     setSelectedSuggestion(suggestion)
-    setCustomizedSuggestion(null)
+    setCustomChartConfig(null)
     setChartData(null)
-    setShowCustomizer(false)
   }
 
-  const handleCustomize = (customized: ChartSuggestion) => {
-    setCustomizedSuggestion(customized)
+  const handleChartConfigChange = (config: {
+    chartType: string
+    xColumn: string
+    yColumn?: string
+    title: string
+  }) => {
+    setCustomChartConfig(config)
     setChartData(null)
   }
 
   const handleCreateChart = async () => {
-    const suggestion = customizedSuggestion || selectedSuggestion
-    if (!suggestion) return
+    const config = customChartConfig || (selectedSuggestion ? {
+      chartType: selectedSuggestion.type,
+      xColumn: selectedSuggestion.xColumn,
+      yColumn: selectedSuggestion.yColumn,
+      title: selectedSuggestion.title
+    } : null)
+    
+    if (!config) return
 
     try {
       const response = await fetch("/api/get-chart-data", {
@@ -96,9 +109,9 @@ export default function DashboardPage() {
         },
         body: JSON.stringify({
           fileId,
-          chartType: suggestion.type,
-          xColumn: suggestion.xColumn,
-          yColumn: suggestion.yColumn,
+          chartType: config.chartType,
+          xColumn: config.xColumn,
+          yColumn: config.yColumn,
         }),
       })
 
@@ -112,10 +125,10 @@ export default function DashboardPage() {
       // Save chart to local state (in a real app, this would be saved to database)
       const newChart: SavedChart = {
         id: crypto.randomUUID(),
-        title: suggestion.title,
-        type: suggestion.type,
-        xColumn: suggestion.xColumn,
-        yColumn: suggestion.yColumn,
+        title: config.title,
+        type: config.chartType,
+        xColumn: config.xColumn,
+        yColumn: config.yColumn,
         data: result.data,
       }
       setSavedCharts((prev) => [...prev, newChart])
@@ -124,7 +137,12 @@ export default function DashboardPage() {
     }
   }
 
-  const currentSuggestion = customizedSuggestion || selectedSuggestion
+  const currentConfig = customChartConfig || (selectedSuggestion ? {
+    chartType: selectedSuggestion.type,
+    xColumn: selectedSuggestion.xColumn,
+    yColumn: selectedSuggestion.yColumn,
+    title: selectedSuggestion.title
+  } : null)
 
   if (loading) {
     return (
@@ -304,23 +322,15 @@ export default function DashboardPage() {
               </Card>
             )}
 
-            {/* Chart Customizer */}
-            {currentSuggestion && (
-              <div className="space-y-4">
-                <Button variant="outline" onClick={() => setShowCustomizer(!showCustomizer)} className="w-full">
-                  {showCustomizer ? "Hide" : "Show"} Customizer
-                </Button>
-
-                {showCustomizer && (
-                  <ChartCustomizer
-                    suggestion={currentSuggestion}
-                    columns={analysis?.columns || []}
-                    onCustomize={handleCustomize}
-                    onCreateChart={handleCreateChart}
-                  />
-                )}
-              </div>
-            )}
+            {/* Chart Type Selector */}
+            <ChartTypeSelector
+              columns={analysis?.columns || []}
+              selectedType={customChartConfig?.chartType || selectedSuggestion?.type}
+              selectedXColumn={customChartConfig?.xColumn || selectedSuggestion?.xColumn}
+              selectedYColumn={customChartConfig?.yColumn || selectedSuggestion?.yColumn}
+              onSelectionChange={handleChartConfigChange}
+              onCreateChart={handleCreateChart}
+            />
           </div>
 
           {/* Right Column - Charts & Suggestions */}
@@ -330,12 +340,12 @@ export default function DashboardPage() {
               <ChartSuggestions
                 suggestions={analysis.suggestedCharts}
                 onSelectSuggestion={handleSelectSuggestion}
-                selectedSuggestion={selectedSuggestion}
+                selectedSuggestion={selectedSuggestion || undefined}
               />
             )}
 
             {/* Chart Preview */}
-            {currentSuggestion && (
+            {currentConfig && (
               <Card>
                 <CardHeader>
                   <div className="flex items-center justify-between">
@@ -348,23 +358,23 @@ export default function DashboardPage() {
                       Create Chart
                     </Button>
                   </div>
-                  <CardDescription>{currentSuggestion.description}</CardDescription>
+                  <CardDescription>{currentConfig.title}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {chartData ? (
                     <ChartRenderer
                       data={chartData}
-                      chartType={currentSuggestion.type}
-                      xColumn={currentSuggestion.xColumn}
-                      yColumn={currentSuggestion.yColumn}
-                      title={currentSuggestion.title}
+                      chartType={currentConfig.chartType as "bar" | "line" | "pie" | "scatter" | "area"}
+                      xColumn={currentConfig.xColumn}
+                      yColumn={currentConfig.yColumn}
+                      title={currentConfig.title}
                       showExport={true}
                     />
                   ) : (
                     <div className="flex items-center justify-center h-64 border-2 border-dashed border-muted-foreground/25 rounded-lg">
                       <div className="text-center">
                         <TrendingUp className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-                        <p className="text-muted-foreground">Click "Create Chart" to generate visualization</p>
+                        <p className="text-muted-foreground">Configure o gráfico e clique em "Create Chart"</p>
                       </div>
                     </div>
                   )}

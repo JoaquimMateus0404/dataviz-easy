@@ -1,0 +1,171 @@
+{
+  "metadata": {
+    "id": "f71136f7-41e8-47f2-8491-a30f7e73c293",
+    "filename": "f71136f7-41e8-47f2-8491-a30f7e73c293",
+    "original_name": "exemplo.csv",
+    "file_size": 229,
+    "mime_type": "text/csv",
+    "status": "completed",
+    "upload_date": "2025-09-13T23:48:40.603Z",
+    "dataStartRow": 1,
+    "dataQuality": {
+      "emptyRows": 0,
+      "emptyColumns": 0,
+      "inconsistentRows": 0,
+      "dataCompleteness": 100,
+      "suggestedCleanup": []
+    },
+    "fileType": "simple_table",
+    "totalRows": 8,
+    "totalColumns": 4,
+    "hasMultipleSheets": false,
+    "detectedHeaders": [
+      "Nome",
+      "Idade",
+      "Cidade",
+      "Salario"
+    ]
+  },
+  "columns": [
+    {
+      "file_id": "f71136f7-41e8-47f2-8491-a30f7e73c293",
+      "column_name": "Nome",
+      "column_type": "string",
+      "sample_values": [
+        "João",
+        "Maria",
+        "Pedro",
+        "Ana",
+        "Carlos"
+      ]
+    },
+    {
+      "file_id": "f71136f7-41e8-47f2-8491-a30f7e73c293",
+      "column_name": "Idade",
+      "column_type": "number",
+      "sample_values": [
+        "25",
+        "30",
+        "35",
+        "28",
+        "32"
+      ]
+    },
+    {
+      "file_id": "f71136f7-41e8-47f2-8491-a30f7e73c293",
+      "column_name": "Cidade",
+      "column_type": "string",
+      "sample_values": [
+        "São Paulo",
+        "Rio de Janeiro",
+        "Belo Horizonte",
+        "Porto Alegre",
+        "Salvador"
+      ]
+    },
+    {
+      "file_id": "f71136f7-41e8-47f2-8491-a30f7e73c293",
+      "column_name": "Salario",
+      "column_type": "number",
+      "sample_values": [
+        "5000",
+        "6000",
+        "5500",
+        "4800",
+        "5200"
+      ]
+    }
+  ],
+  "rows": [
+    {
+      "file_id": "f71136f7-41e8-47f2-8491-a30f7e73c293",
+      "row_index": 0,
+      "data": {
+        "Nome": "João",
+        "Idade": "25",
+        "Cidade": "São Paulo",
+        "Salario": "5000"
+      }
+    },
+    {
+      "file_id": "f71136f7-41e8-47f2-8491-a30f7e73c293",
+      "row_index": 1,
+      "data": {
+        "Nome": "Maria",
+        "Idade": "30",
+        "Cidade": "Rio de Janeiro",
+        "Salario": "6000"
+      }
+    },
+    {
+      "file_id": "f71136f7-41e8-47f2-8491-a30f7e73c293",
+      "row_index": 2,
+      "data": {
+        "Nome": "Pedro",
+        "Idade": "35",
+        "Cidade": "Belo Horizonte",
+        "Salario": "5500"
+      }
+    },
+    {
+      "file_id": "f71136f7-41e8-47f2-8491-a30f7e73c293",
+      "row_index": 3,
+      "data": {
+        "Nome": "Ana",
+        "Idade": "28",
+        "Cidade": "Porto Alegre",
+        "Salario": "4800"
+      }
+    },
+    {
+      "file_id": "f71136f7-41e8-47f2-8491-a30f7e73c293",
+      "row_index": 4,
+      "data": {
+        "Nome": "Carlos",
+        "Idade": "32",
+        "Cidade": "Salvador",
+        "Salario": "5200"
+      }
+    },
+    {
+      "file_id": "f71136f7-41e8-47f2-8491-a30f7e73c293",
+      "row_index": 5,
+      "data": {
+        "Nome": "Julia",
+        "Idade": "27",
+        "Cidade": "Brasília",
+        "Salario": "5800"
+      }
+    },
+    {
+      "file_id": "f71136f7-41e8-47f2-8491-a30f7e73c293",
+      "row_index": 6,
+      "data": {
+        "Nome": "Roberto",
+        "Idade": "40",
+        "Cidade": "Fortaleza",
+        "Salario": "6200"
+      }
+    },
+    {
+      "file_id": "f71136f7-41e8-47f2-8491-a30f7e73c293",
+      "row_index": 7,
+      "data": {
+        "Nome": "Paula",
+        "Idade": "33",
+        "Cidade": "Recife",
+        "Salario": "5400"
+      }
+    }
+  ],
+  "processingLog": [
+    "Processando: exemplo.csv (0.22KB)",
+    "Detectados: 4 colunas, 8 linhas",
+    "Início dos dados na linha: 1",
+    "Qualidade dos dados: 100.0% completo",
+    "Nome: string (5 amostras)",
+    "Idade: number (5 amostras)",
+    "Cidade: string (5 amostras)",
+    "Salario: number (5 amostras)"
+  ]
+}
