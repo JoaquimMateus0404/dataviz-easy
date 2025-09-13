@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { fileStorage } from "../process-file/route"
+import { fileStorage } from "@/lib/file-storage"
 
 export async function POST(request: NextRequest) {
   try {

@@ -1,4 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
+import { AdvancedDataProcessor } from "@/lib/advanced-data-processor"
+import { fileStorage } from "@/lib/file-storage"
 
 interface ProcessFileRequest {
   fileId: string
@@ -8,107 +10,86 @@ interface ProcessFileRequest {
   size: number
 }
 
-// Function to detect column types
+// Function to detect column types with better accuracy
 function detectColumnType(values: string[]): "string" | "number" | "date" | "boolean" {
   const nonEmptyValues = values.filter((v) => v && v.trim() !== "")
 
   if (nonEmptyValues.length === 0) return "string"
 
-  // Check if all values are numbers
-  const numberCount = nonEmptyValues.filter((v) => !isNaN(Number(v))).length
-  if (numberCount === nonEmptyValues.length) return "number"
+  // Check for currency values (R$ format)
+  const currencyCount = nonEmptyValues.filter(v => 
+    /^R\$\s*[\d,.-]+$/.test(v.trim())
+  ).length
 
-  // Check if all values are dates
-  const dateCount = nonEmptyValues.filter((v) => !isNaN(Date.parse(v))).length
+  // Check for numeric values (including currency)
+  const numberCount = nonEmptyValues.filter((v) => {
+    const cleanValue = v.replace(/[R$\s,]/g, '.')
+    return !isNaN(Number(cleanValue))
+  }).length
+
+  if (numberCount === nonEmptyValues.length || currencyCount > nonEmptyValues.length * 0.8) {
+    return "number"
+  }
+
+  // Check for dates
+  const dateCount = nonEmptyValues.filter((v) => {
+    const dateValue = Date.parse(v)
+    return !isNaN(dateValue) && v.match(/\d/)
+  }).length
+  
   if (dateCount === nonEmptyValues.length) return "date"
 
-  // Check if all values are booleans
+  // Check for booleans
   const booleanCount = nonEmptyValues.filter((v) => 
-    v.toLowerCase() === "true" || v.toLowerCase() === "false" || v === "1" || v === "0"
+    /^(true|false|sim|não|yes|no|1|0)$/i.test(v.trim())
   ).length
+  
   if (booleanCount === nonEmptyValues.length) return "boolean"
 
   return "string"
 }
 
-// Simple CSV parser
-function parseCSV(csvText: string): string[][] {
-  const lines = csvText.split("\n")
-  const result: string[][] = []
-
-  for (const line of lines) {
-    if (line.trim() === "") continue
-
-    // Simple CSV parsing - handles basic quoted fields
-    const row: string[] = []
-    let current = ""
-    let inQuotes = false
-
-    for (let i = 0; i < line.length; i++) {
-      const char = line[i]
-
-      if (char === '"' && (i === 0 || line[i - 1] === ",")) {
-        inQuotes = true
-      } else if (char === '"' && inQuotes && (i === line.length - 1 || line[i + 1] === ",")) {
-        inQuotes = false
-      } else if (char === "," && !inQuotes) {
-        row.push(current.trim())
-        current = ""
-      } else {
-        current += char
-      }
-    }
-
-    row.push(current.trim())
-    result.push(row)
-  }
-
-  return result
-}
-
-// Store data in memory for development (in production, this would be in a database)
-const fileStorage = new Map<string, {
-  metadata: any,
-  columns: any[],
-  rows: any[]
-}>()
-
 export async function POST(request: NextRequest) {
   try {
-    console.log("📁 Iniciando processamento de arquivo (modo desenvolvimento)...")
+    console.log("📁 Iniciando processamento avançado de arquivo...")
     
     const body: ProcessFileRequest = await request.json()
     const { fileId, filename, content, mimeType, size } = body
     
     console.log("📄 Arquivo recebido:", { fileId, filename, mimeType, size })
 
-    // Parse the file content
-    console.log("🔍 Analisando conteúdo do arquivo...")
-    let rows: string[][]
+    const processingLog: string[] = []
+    processingLog.push(`Processando: ${filename} (${(size / 1024).toFixed(2)}KB)`)
 
-    if (mimeType === "text/csv" || filename.endsWith(".csv")) {
-      rows = parseCSV(content)
-    } else {
-      // For Excel files, we would need a library like xlsx
-      // For now, assume it's CSV format
-      rows = parseCSV(content)
-    }
-
-    if (rows.length === 0) {
-      throw new Error("No data found in file")
-    }
-
-    const headers = rows[0]
-    const dataRows = rows.slice(1)
+    // Use the advanced processor
+    console.log("🔍 Processamento avançado de dados...")
+    const parsedData = AdvancedDataProcessor.processFile(content, filename, mimeType)
     
-    console.log(`📊 Dados processados: ${headers.length} colunas, ${dataRows.length} linhas`)
+    processingLog.push(`Detectados: ${parsedData.headers.length} colunas, ${parsedData.rows.length} linhas`)
+    processingLog.push(`Início dos dados na linha: ${parsedData.metadata.dataStartRow}`)
+    
+    if (parsedData.metadata.hasMultipleSheets) {
+      processingLog.push(`Arquivo Excel com ${parsedData.sheets?.length} abas`)
+    }
 
-    // Analyze columns and detect types
-    console.log("🔍 Analisando tipos das colunas...")
-    const columnData = headers.map((header, index) => {
-      const columnValues = dataRows.map((row) => row[index] || "")
+    console.log(`📊 Dados processados: ${parsedData.headers.length} colunas, ${parsedData.rows.length} linhas`)
+
+    // Analyze data quality
+    const qualityReport = AdvancedDataProcessor.analyzeDataQuality(parsedData.headers, parsedData.rows)
+    processingLog.push(`Qualidade dos dados: ${qualityReport.dataCompleteness.toFixed(1)}% completo`)
+    
+    if (qualityReport.suggestedCleanup.length > 0) {
+      processingLog.push(`Sugestões de limpeza: ${qualityReport.suggestedCleanup.join(', ')}`)
+    }
+
+    // Analyze columns with enhanced detection
+    console.log("🔍 Análise inteligente de tipos de colunas...")
+    const columnData = parsedData.headers.map((header, index) => {
+      const columnValues = parsedData.rows.map((row) => row[index] || "")
       const columnType = detectColumnType(columnValues)
       const sampleValues = columnValues.slice(0, 5).filter((v) => v && v.trim() !== "")
+      
+      processingLog.push(`${header}: ${columnType} (${sampleValues.length} amostras)`)
 
       return {
         file_id: fileId,
@@ -118,11 +99,18 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    // Prepare data rows
-    const rowData = dataRows.map((row, index) => {
+    // Prepare data rows with better structure
+    const rowData = parsedData.rows.map((row, index) => {
       const rowObject: Record<string, any> = {}
-      headers.forEach((header, colIndex) => {
-        rowObject[header] = row[colIndex] || null
+      parsedData.headers.forEach((header, colIndex) => {
+        let value = row[colIndex] || null
+        
+        // Clean currency values
+        if (value && typeof value === 'string' && /^R\$\s*[\d,.-]+$/.test(value)) {
+          value = value.replace(/[R$\s]/g, '').replace(',', '.')
+        }
+        
+        rowObject[header] = value
       })
 
       return {
@@ -132,7 +120,7 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    // Store data in memory
+    // Store enhanced data in memory
     fileStorage.set(fileId, {
       metadata: {
         id: fileId,
@@ -142,20 +130,34 @@ export async function POST(request: NextRequest) {
         mime_type: mimeType,
         status: "completed",
         upload_date: new Date().toISOString(),
+        sheets: parsedData.sheets,
+        dataStartRow: parsedData.metadata.dataStartRow,
+        dataQuality: qualityReport,
+        fileType: parsedData.metadata.fileType,
+        extractedSections: parsedData.metadata.extractedSections,
+        totalRows: parsedData.metadata.totalRows,
+        totalColumns: parsedData.metadata.totalColumns,
+        hasMultipleSheets: parsedData.metadata.hasMultipleSheets,
+        detectedHeaders: parsedData.metadata.detectedHeaders,
       },
       columns: columnData,
-      rows: rowData
+      rows: rowData,
+      processingLog
     })
 
-    console.log("🎉 Processamento concluído com sucesso!")
+    console.log("🎉 Processamento avançado concluído com sucesso!")
+    
     return NextResponse.json({
       success: true,
       fileId,
-      rowCount: dataRows.length,
-      columnCount: headers.length,
+      rowCount: parsedData.rows.length,
+      columnCount: parsedData.headers.length,
+      dataQuality: qualityReport,
+      metadata: parsedData.metadata,
+      processingLog: processingLog.slice(-5), // Last 5 log entries
     })
   } catch (error) {
-    console.error("❌ Erro ao processar arquivo:", error)
+    console.error("❌ Erro no processamento avançado:", error)
     
     if (error instanceof Error) {
       console.error("📝 Mensagem do erro:", error.message)
@@ -163,10 +165,11 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({ 
-      error: error instanceof Error ? error.message : "Unknown error"
+      error: error instanceof Error ? error.message : "Unknown error",
+      suggestion: "Verifique se o arquivo está no formato correto (CSV ou Excel)"
     }, { status: 500 })
   }
 }
 
 // Export the in-memory storage for other APIs to use
-export { fileStorage }
+// (Now using singleton from lib/file-storage.ts)

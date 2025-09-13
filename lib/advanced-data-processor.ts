@@ -10,6 +10,12 @@ export interface ParsedData {
     hasMultipleSheets: boolean
     detectedHeaders: string[]
     dataStartRow: number
+    fileType: 'simple_table' | 'budget_layout' | 'expense_report' | 'complex_structure'
+    extractedSections?: {
+      name: string
+      headers: string[]
+      rows: string[][]
+    }[]
   }
 }
 
@@ -54,25 +60,26 @@ export class AdvancedDataProcessor {
       }
 
       const worksheet = workbook.Sheets[bestSheet]
-      const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' }) as string[][]
+      const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' })
       
-      // Smart header detection
-      const { headers, dataStartRow } = this.detectHeaders(rawData)
-      const dataRows = rawData.slice(dataStartRow)
+      // Smart header detection and data analysis
+      const analysisResult = this.analyzeComplexStructure(rawData as string[][])
       
       // Clean and normalize data
-      const cleanedRows = this.cleanDataRows(dataRows, headers.length)
+      const cleanedRows = this.cleanDataRows(analysisResult.dataRows, analysisResult.headers.length)
 
       return {
-        headers,
+        headers: analysisResult.headers,
         rows: cleanedRows,
         sheets: sheetNames,
         metadata: {
           totalRows: cleanedRows.length,
-          totalColumns: headers.length,
+          totalColumns: analysisResult.headers.length,
           hasMultipleSheets: sheetNames.length > 1,
-          detectedHeaders: headers,
-          dataStartRow
+          detectedHeaders: analysisResult.headers,
+          dataStartRow: analysisResult.dataStartRow,
+          fileType: analysisResult.fileType,
+          extractedSections: analysisResult.extractedSections
         }
       }
     } catch (error) {
@@ -96,22 +103,23 @@ export class AdvancedDataProcessor {
       }
     }
 
-    // Smart header detection
-    const { headers, dataStartRow } = this.detectHeaders(rawRows)
-    const dataRows = rawRows.slice(dataStartRow)
+    // Smart analysis of complex structure
+    const analysisResult = this.analyzeComplexStructure(rawRows)
     
     // Clean and normalize data
-    const cleanedRows = this.cleanDataRows(dataRows, headers.length)
+    const cleanedRows = this.cleanDataRows(analysisResult.dataRows, analysisResult.headers.length)
 
     return {
-      headers,
+      headers: analysisResult.headers,
       rows: cleanedRows,
       metadata: {
         totalRows: cleanedRows.length,
-        totalColumns: headers.length,
+        totalColumns: analysisResult.headers.length,
         hasMultipleSheets: false,
-        detectedHeaders: headers,
-        dataStartRow
+        detectedHeaders: analysisResult.headers,
+        dataStartRow: analysisResult.dataStartRow,
+        fileType: analysisResult.fileType,
+        extractedSections: analysisResult.extractedSections
       }
     }
   }
@@ -154,8 +162,30 @@ export class AdvancedDataProcessor {
       return { headers: [], dataStartRow: 0 }
     }
 
-    // Look for the first row that seems like headers
-    for (let i = 0; i < Math.min(10, rows.length); i++) {
+    console.log('🔍 Iniciando detecção inteligente de cabeçalhos...')
+
+    // Strategy 1: Find tables with clear data patterns
+    const tableCandidate = this.findDataTable(rows)
+    if (tableCandidate) {
+      console.log(`✅ Tabela de dados encontrada na linha ${tableCandidate.headerRow}`)
+      return {
+        headers: tableCandidate.headers,
+        dataStartRow: tableCandidate.dataStartRow
+      }
+    }
+
+    // Strategy 2: Find budget-style layouts (like "Orçamento mensal")
+    const budgetLayout = this.findBudgetLayout(rows)
+    if (budgetLayout) {
+      console.log(`💰 Layout de orçamento detectado na linha ${budgetLayout.headerRow}`)
+      return {
+        headers: budgetLayout.headers,
+        dataStartRow: budgetLayout.dataStartRow
+      }
+    }
+
+    // Strategy 3: Look for any row that could be headers
+    for (let i = 0; i < Math.min(15, rows.length); i++) {
       const row = rows[i]
       
       // Skip completely empty rows
@@ -178,6 +208,7 @@ export class AdvancedDataProcessor {
           return cleanHeader || `Column_${index + 1}`
         })
         
+        console.log(`📋 Cabeçalhos genéricos detectados na linha ${i}`)
         return { 
           headers: cleanHeaders.slice(0, this.findLastNonEmptyColumn(cleanHeaders) + 1),
           dataStartRow: i + 1 
@@ -193,7 +224,125 @@ export class AdvancedDataProcessor {
       return value && value.toString().trim() !== '' ? value.toString().trim() : `Column_${i + 1}`
     })
 
+    console.log('⚠️ Usando cabeçalhos de fallback')
     return { headers, dataStartRow: 1 }
+  }
+
+  private static findDataTable(rows: string[][]): { headers: string[], headerRow: number, dataStartRow: number } | null {
+    // Look for patterns like "Data, Categoria, Descrição, Valor"
+    for (let i = 0; i < Math.min(25, rows.length); i++) {
+      const row = rows[i]
+      if (!row || row.length < 3) continue
+
+      if (this.isValidHeaderRow(row, i, rows)) {
+        const cleanHeaders = row.map((header, index) => {
+          const cleanHeader = header ? header.toString().trim() : ''
+          return cleanHeader || `Column_${index + 1}`
+        })
+        
+        return {
+          headers: cleanHeaders.slice(0, this.findLastNonEmptyColumn(cleanHeaders) + 1),
+          headerRow: i,
+          dataStartRow: i + 1
+        }
+      }
+    }
+
+    return null
+  }
+
+  private static isValidHeaderRow(row: string[], rowIndex: number, allRows: string[][]): boolean {
+    const cellsText = row.map(cell => (cell || '').toString().toLowerCase().trim())
+    
+    // Score this row as potential headers
+    let score = 0
+    const headerKeywords = [
+      'data', 'categoria', 'descrição', 'valor', 'observações', 'nome', 'código',
+      'quantidade', 'preço', 'total', 'departamento', 'funcionário', 'cliente'
+    ]
+
+    for (const cell of cellsText) {
+      if (cell && headerKeywords.some(keyword => cell.includes(keyword))) {
+        score += 2
+      }
+      if (cell && cell.length > 0 && cell.length < 30 && !this.isNumericValue(cell)) {
+        score += 1
+      }
+    }
+
+    // Check if following rows have data
+    if (score >= 3 && rowIndex < allRows.length - 2) {
+      return allRows.slice(rowIndex + 1, rowIndex + 4).some(nextRow => 
+        nextRow?.some(cell => this.isNumericValue(cell))
+      )
+    }
+
+    return false
+  }
+
+  private static findBudgetLayout(rows: string[][]): { headers: string[], headerRow: number, dataStartRow: number } | null {
+    // Look for budget-style layouts with categories and values
+    for (let i = 0; i < Math.min(30, rows.length); i++) {
+      const row = rows[i]
+      if (!row || row.length < 3) continue
+
+      const cellsText = row.map(cell => (cell || '').toString().toLowerCase().trim())
+      
+      if (this.isBudgetHeaderRow(cellsText)) {
+        const budgetHeaders = ['Categoria', 'Planejado', 'Real', 'Diferença']
+        
+        if (this.hasBudgetDataFollowing(rows, i + 1)) {
+          return {
+            headers: budgetHeaders,
+            headerRow: i,
+            dataStartRow: i + 1
+          }
+        }
+      }
+    }
+
+    return null
+  }
+
+  private static isBudgetHeaderRow(cellsText: string[]): boolean {
+    return cellsText.some(cell => cell.includes('planejado')) &&
+           cellsText.some(cell => cell.includes('real'))
+  }
+
+  private static hasBudgetDataFollowing(rows: string[][], startRow: number): boolean {
+    for (let j = startRow; j < Math.min(startRow + 10, rows.length); j++) {
+      const dataRow = rows[j]
+      if (dataRow && dataRow.length >= 3) {
+        const hasCategory = dataRow[0] && dataRow[0].toString().trim() !== ''
+        const hasValues = dataRow.slice(1).some(cell => this.isMonetaryValue(cell))
+        
+        if (hasCategory && hasValues) {
+          return true
+        }
+      }
+    }
+    return false
+  }
+
+  private static isNumericValue(cell: any): boolean {
+    if (!cell) return false
+    const str = cell.toString().trim()
+    if (str === '') return false
+    
+    // Check for currency values
+    const currencyRegex = /^R\$\s*[\d,.-]+$/
+    if (currencyRegex.exec(str)) return true
+    
+    // Check for regular numbers
+    const num = str.replace(/[,.-]/g, '.')
+    return !isNaN(Number(num)) && /\d/.test(str)
+  }
+
+  private static isMonetaryValue(cell: any): boolean {
+    if (!cell) return false
+    const str = cell.toString().trim()
+    const currencyRegex = /^R\$\s*[\d,.-]+$/
+    return currencyRegex.exec(str) !== null
   }
 
   private static findLastNonEmptyColumn(row: string[]): number {
@@ -206,33 +355,369 @@ export class AdvancedDataProcessor {
   }
 
   private static cleanDataRows(rows: string[][], expectedColumnCount: number): string[][] {
-    return rows
-      .filter(row => {
-        // Keep rows that have at least one non-empty cell
-        return row.some(cell => cell && cell.toString().trim() !== '')
-      })
-      .map(row => {
-        // Normalize row length and clean cells
-        const cleanedRow = Array.from({ length: expectedColumnCount }, (_, i) => {
-          const cell = row[i]
-          if (!cell) return ''
-          
-          const cleanCell = cell.toString().trim()
-          
-          // Handle currency values (R$ format)
-          if (cleanCell.match(/^R\$\s*[\d,.-]+$/)) {
-            return cleanCell.replace(/[R$\s]/g, '').replace(',', '.')
-          }
-          
-          return cleanCell
-        })
+    console.log(`🧹 Iniciando limpeza de ${rows.length} linhas de dados...`)
+    
+    const cleanedRows: string[][] = []
+    
+    for (const [rowIndex, row] of rows.entries()) {
+      // Skip completely empty rows
+      if (!row?.some(cell => cell?.toString().trim() !== '')) {
+        continue
+      }
+
+      // Handle budget-style data extraction
+      const budgetData = this.extractBudgetRow(row)
+      if (budgetData) {
+        cleanedRows.push(budgetData)
+        continue
+      }
+
+      // Handle regular table data
+      const cleanedRow = Array.from({ length: expectedColumnCount }, (_, j) => {
+        const cell = row[j]
+        if (!cell) return ''
         
-        return cleanedRow
+        let cleanCell = cell.toString().trim()
+        
+        // Handle currency values (R$ format)
+        const currencyRegex = /^R\$\s*[\d,.-]+$/
+        if (currencyRegex.exec(cleanCell)) {
+          cleanCell = cleanCell.replace(/[R$\s]/g, '').replace(',', '.')
+          // Convert to number and back to ensure proper formatting
+          const numValue = parseFloat(cleanCell)
+          return isNaN(numValue) ? '0' : numValue.toString()
+        }
+        
+        // Handle percentage values
+        const percentageRegex = /^\+?\d+%$/
+        if (percentageRegex.exec(cleanCell)) {
+          return cleanCell.replace('%', '')
+        }
+        
+        return cleanCell
       })
-      .filter(row => {
-        // Remove rows that are completely empty after cleaning
-        return row.some(cell => cell !== '')
+      
+      // Only keep rows that have meaningful data
+      if (cleanedRow.some(cell => cell !== '')) {
+        cleanedRows.push(cleanedRow)
+      }
+    }
+
+    console.log(`✅ Limpeza concluída: ${cleanedRows.length} linhas válidas extraídas`)
+    return cleanedRows
+  }
+
+  private static extractBudgetRow(row: string[]): string[] | null {
+    // Extract budget-style data (Category, Planned, Real, Difference)
+    if (!row || row.length < 3) return null
+    
+    const category = row[0] ? row[0].toString().trim() : ''
+    if (!this.isValidBudgetCategory(category)) {
+      return null
+    }
+
+    // Look for monetary values in the row
+    const values: string[] = []
+    let foundMonetary = false
+    
+    for (let i = 1; i < row.length; i++) {
+      const cell = row[i] ? row[i].toString().trim() : ''
+      
+      const currencyRegex = /^R\$\s*[\d,.-]+$/
+      if (currencyRegex.exec(cell)) {
+        foundMonetary = true
+        const cleanValue = cell.replace(/[R$\s]/g, '').replace(',', '.')
+        const numValue = parseFloat(cleanValue)
+        values.push(isNaN(numValue) ? '0' : numValue.toString())
+      } else if (foundMonetary && values.length < 3) {
+        // Fill gaps with 0 if we're in the middle of monetary data
+        values.push('0')
+      }
+    }
+
+    // Only return if we have a category and at least one monetary value
+    if (category && foundMonetary && values.length > 0) {
+      // Ensure we have exactly 3 values (Planned, Real, Difference)
+      while (values.length < 3) {
+        values.push('0')
+      }
+      return [category, ...values.slice(0, 3)]
+    }
+
+    return null
+  }
+
+  private static isValidBudgetCategory(category: string): boolean {
+    if (!category || category === '') return false
+    
+    const lowerCategory = category.toLowerCase()
+    
+    // Skip meta information rows
+    const skipKeywords = ['primeiros passos', 'observação', 'saldo inicial', 'orçamento mensal', 'totais']
+    return !skipKeywords.some(keyword => lowerCategory.includes(keyword))
+  }
+
+  private static analyzeComplexStructure(rows: string[][]): {
+    headers: string[]
+    dataRows: string[][]
+    dataStartRow: number
+    fileType: 'simple_table' | 'budget_layout' | 'expense_report' | 'complex_structure'
+    extractedSections?: {
+      name: string
+      headers: string[]
+      rows: string[][]
+    }[]
+  } {
+    console.log('🔍 Analisando estrutura complexa do arquivo...')
+    
+    // Check for budget layout first
+    const budgetResult = this.analyzeBudgetStructure(rows)
+    if (budgetResult) {
+      return budgetResult
+    }
+
+    // Check for expense report layout
+    const expenseResult = this.analyzeExpenseReport(rows)
+    if (expenseResult) {
+      return expenseResult
+    }
+
+    // Check for simple table
+    const tableResult = this.analyzeSimpleTable(rows)
+    if (tableResult) {
+      return tableResult
+    }
+
+    // Fallback to complex structure
+    return this.analyzeComplexMultiSection(rows)
+  }
+
+  private static analyzeBudgetStructure(rows: string[][]): {
+    headers: string[]
+    dataRows: string[][]
+    dataStartRow: number
+    fileType: 'budget_layout'
+    extractedSections: {
+      name: string
+      headers: string[]
+      rows: string[][]
+    }[]
+  } | null {
+    // Look for budget-style keywords
+    const budgetKeywords = ['orçamento', 'despesas', 'renda', 'planejado', 'real']
+    const hasBudgetContent = rows.some(row => 
+      row.some(cell => {
+        const cellText = (cell || '').toString().toLowerCase()
+        return budgetKeywords.some(keyword => cellText.includes(keyword))
       })
+    )
+
+    if (!hasBudgetContent) return null
+
+    console.log('💰 Estrutura de orçamento detectada')
+
+    const sections: Array<{
+      name: string
+      headers: string[]
+      rows: string[][]
+    }> = []
+
+    // Extract expenses section
+    const expensesData = this.extractBudgetSection(rows, 'despesas')
+    if (expensesData) {
+      sections.push({
+        name: 'Despesas',
+        headers: ['Categoria', 'Planejado', 'Real', 'Diferença'],
+        rows: expensesData
+      })
+    }
+
+    // Extract income section
+    const incomeData = this.extractBudgetSection(rows, 'renda')
+    if (incomeData) {
+      sections.push({
+        name: 'Renda',
+        headers: ['Categoria', 'Planejado', 'Real', 'Diferença'],
+        rows: incomeData
+      })
+    }
+
+    // Combine all data for main table
+    const allData = [...(expensesData || []), ...(incomeData || [])]
+
+    return {
+      headers: ['Categoria', 'Planejado', 'Real', 'Diferença'],
+      dataRows: allData,
+      dataStartRow: 0,
+      fileType: 'budget_layout',
+      extractedSections: sections
+    }
+  }
+
+  private static analyzeExpenseReport(rows: string[][]): {
+    headers: string[]
+    dataRows: string[][]
+    dataStartRow: number
+    fileType: 'expense_report'
+    extractedSections: {
+      name: string
+      headers: string[]
+      rows: string[][]
+    }[]
+  } | null {
+    // Look for expense report keywords
+    const expenseKeywords = ['relatório', 'despesas', 'data', 'categoria', 'valor']
+    const hasExpenseContent = rows.some(row => 
+      row.some(cell => {
+        const cellText = (cell || '').toString().toLowerCase()
+        return expenseKeywords.some(keyword => cellText.includes(keyword))
+      })
+    )
+
+    if (!hasExpenseContent) return null
+
+    console.log('📊 Relatório de despesas detectado')
+
+    // Find the transaction table
+    const tableResult = this.findDataTable(rows)
+    if (tableResult) {
+      const dataRows = rows.slice(tableResult.dataStartRow)
+        .filter(row => row.some(cell => cell && cell.toString().trim() !== ''))
+        .map(row => row.map(cell => (cell || '').toString().trim()))
+
+      return {
+        headers: tableResult.headers,
+        dataRows,
+        dataStartRow: tableResult.dataStartRow,
+        fileType: 'expense_report',
+        extractedSections: [{
+          name: 'Transações',
+          headers: tableResult.headers,
+          rows: dataRows
+        }]
+      }
+    }
+
+    return null
+  }
+
+  private static analyzeSimpleTable(rows: string[][]): {
+    headers: string[]
+    dataRows: string[][]
+    dataStartRow: number
+    fileType: 'simple_table'
+  } | null {
+    const tableResult = this.findDataTable(rows)
+    if (tableResult) {
+      const dataRows = rows.slice(tableResult.dataStartRow)
+        .filter(row => row.some(cell => cell && cell.toString().trim() !== ''))
+
+      return {
+        headers: tableResult.headers,
+        dataRows,
+        dataStartRow: tableResult.dataStartRow,
+        fileType: 'simple_table'
+      }
+    }
+
+    return null
+  }
+
+  private static analyzeComplexMultiSection(rows: string[][]): {
+    headers: string[]
+    dataRows: string[][]
+    dataStartRow: number
+    fileType: 'complex_structure'
+    extractedSections: {
+      name: string
+      headers: string[]
+      rows: string[][]
+    }[]
+  } {
+    console.log('🔍 Estrutura complexa multi-seção detectada')
+
+    // Extract all meaningful data
+    const allData: string[][] = []
+    const sections: Array<{
+      name: string
+      headers: string[]
+      rows: string[][]
+    }> = []
+
+    let sectionCount = 1
+    for (const [index, row] of rows.entries()) {
+      if (!row || !row.some(cell => cell && cell.toString().trim() !== '')) {
+        continue
+      }
+
+      // Extract meaningful data from this row
+      const extractedRow = this.extractMeaningfulData(row)
+      if (extractedRow && extractedRow.length > 0) {
+        allData.push(extractedRow)
+        
+        // Create a section for this data
+        sections.push({
+          name: `Seção ${sectionCount}`,
+          headers: extractedRow.map((_, i) => `Campo_${i + 1}`),
+          rows: [extractedRow]
+        })
+        sectionCount++
+      }
+    }
+
+    return {
+      headers: ['Campo_1', 'Campo_2', 'Campo_3', 'Campo_4'],
+      dataRows: allData,
+      dataStartRow: 0,
+      fileType: 'complex_structure',
+      extractedSections: sections
+    }
+  }
+
+  private static extractBudgetSection(rows: string[][], sectionType: string): string[][] | null {
+    const data: string[][] = []
+    let inSection = false
+
+    for (const row of rows) {
+      if (!row) continue
+
+      const rowText = row.join(' ').toLowerCase()
+      
+      // Check if we're entering the section
+      if (rowText.includes(sectionType) && 
+          (rowText.includes('planejado') || rowText.includes('real'))) {
+        inSection = true
+        continue
+      }
+
+      // If in section, extract data
+      if (inSection) {
+        const budgetRow = this.extractBudgetRow(row)
+        if (budgetRow) {
+          data.push(budgetRow)
+        }
+        
+        // Exit section if we hit another major section
+        if (rowText.includes('totais') && data.length > 0) {
+          break
+        }
+      }
+    }
+
+    return data.length > 0 ? data : null
+  }
+
+  private static extractMeaningfulData(row: string[]): string[] | null {
+    const meaningful: string[] = []
+    
+    for (const cell of row) {
+      if (cell && cell.toString().trim() !== '') {
+        const cleanCell = cell.toString().trim()
+        meaningful.push(cleanCell)
+      }
+    }
+
+    return meaningful.length >= 2 ? meaningful : null
   }
 
   static analyzeDataQuality(headers: string[], rows: string[][]): DataQualityReport {

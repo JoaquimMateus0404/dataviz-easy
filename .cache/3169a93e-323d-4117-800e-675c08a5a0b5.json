@@ -1,0 +1,71 @@
+{
+  "metadata": {
+    "id": "3169a93e-323d-4117-800e-675c08a5a0b5",
+    "filename": "3169a93e-323d-4117-800e-675c08a5a0b5",
+    "original_name": "Orçamento mensal - Resumo.csv",
+    "file_size": 1705,
+    "mime_type": "text/csv",
+    "status": "completed",
+    "upload_date": "2025-09-13T23:35:57.586Z",
+    "dataStartRow": 0,
+    "dataQuality": {
+      "emptyRows": 0,
+      "emptyColumns": 4,
+      "inconsistentRows": 0,
+      "dataCompleteness": 0,
+      "suggestedCleanup": [
+        "Remover 4 coluna(s) vazia(s)",
+        "Dados muito esparsos - considere revisar a estrutura"
+      ]
+    },
+    "fileType": "budget_layout",
+    "extractedSections": [],
+    "totalRows": 0,
+    "totalColumns": 4,
+    "hasMultipleSheets": false,
+    "detectedHeaders": [
+      "Categoria",
+      "Planejado",
+      "Real",
+      "Diferença"
+    ]
+  },
+  "columns": [
+    {
+      "file_id": "3169a93e-323d-4117-800e-675c08a5a0b5",
+      "column_name": "Categoria",
+      "column_type": "string",
+      "sample_values": []
+    },
+    {
+      "file_id": "3169a93e-323d-4117-800e-675c08a5a0b5",
+      "column_name": "Planejado",
+      "column_type": "string",
+      "sample_values": []
+    },
+    {
+      "file_id": "3169a93e-323d-4117-800e-675c08a5a0b5",
+      "column_name": "Real",
+      "column_type": "string",
+      "sample_values": []
+    },
+    {
+      "file_id": "3169a93e-323d-4117-800e-675c08a5a0b5",
+      "column_name": "Diferença",
+      "column_type": "string",
+      "sample_values": []
+    }
+  ],
+  "rows": [],
+  "processingLog": [
+    "Processando: Orçamento mensal - Resumo.csv (1.67KB)",
+    "Detectados: 4 colunas, 0 linhas",
+    "Início dos dados na linha: 0",
+    "Qualidade dos dados: 0.0% completo",
+    "Sugestões de limpeza: Remover 4 coluna(s) vazia(s), Dados muito esparsos - considere revisar a estrutura",
+    "Categoria: string (0 amostras)",
+    "Planejado: string (0 amostras)",
+    "Real: string (0 amostras)",
+    "Diferença: string (0 amostras)"
+  ]
+}

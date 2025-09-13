@@ -43,13 +43,20 @@ export default function DashboardPage() {
   const fetchAnalysis = async () => {
     try {
       setLoading(true)
+      console.log(`🔍 Buscando análise para fileId: ${fileId}`)
+      
       const response = await fetch(`/api/analyze-data?fileId=${fileId}`)
+      console.log(`📡 Response status: ${response.status}`)
 
       if (!response.ok) {
-        throw new Error("Failed to fetch analysis")
+        const errorData = await response.json()
+        console.error("❌ Erro na resposta:", errorData)
+        throw new Error(errorData.error || "Failed to fetch analysis")
       }
 
       const result = await response.json()
+      console.log("✅ Análise recebida:", result)
+      
       setAnalysis(result.analysis)
       setFileInfo(result.file)
 
@@ -58,6 +65,7 @@ export default function DashboardPage() {
         setSelectedSuggestion(result.analysis.suggestedCharts[0])
       }
     } catch (err) {
+      console.error("❌ Erro ao buscar análise:", err)
       setError(err instanceof Error ? err.message : "Unknown error")
     } finally {
       setLoading(false)
@@ -199,31 +207,102 @@ export default function DashboardPage() {
                   Data Summary
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
+              <CardContent className="space-y-3">
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Rows:</span>
+                  <span className="text-sm font-medium">{analysis?.rowCount}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Columns:</span>
+                  <span className="text-sm font-medium">{analysis?.columns.length}</span>
+                </div>
+                {fileInfo?.fileType && (
                   <div className="flex justify-between">
-                    <span className="text-sm text-muted-foreground">Total Rows:</span>
-                    <span className="text-sm font-medium">{analysis?.rowCount}</span>
+                    <span className="text-sm text-muted-foreground">Type:</span>
+                    <Badge variant="outline" className="text-xs">
+                      {fileInfo.fileType.replace('_', ' ')}
+                    </Badge>
                   </div>
+                )}
+                {analysis?.dataQuality && (
                   <div className="flex justify-between">
-                    <span className="text-sm text-muted-foreground">Total Columns:</span>
-                    <span className="text-sm font-medium">{analysis?.columns.length}</span>
+                    <span className="text-sm text-muted-foreground">Completeness:</span>
+                    <span className="text-sm font-medium">
+                      {analysis.dataQuality.completeness.toFixed(1)}%
+                    </span>
                   </div>
-                  <Separator />
-                  <div className="space-y-2">
-                    <h4 className="text-sm font-medium">Column Types:</h4>
-                    {analysis?.columns.map((column) => (
-                      <div key={column.name} className="flex justify-between text-xs">
-                        <span className="truncate max-w-[120px]">{column.name}</span>
-                        <Badge variant="outline" className="text-xs">
-                          {column.type}
-                        </Badge>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Data Quality & Insights */}
+            {analysis?.insights && analysis.insights.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <TrendingUp className="w-5 h-5" />
+                    Insights
+                  </CardTitle>
+                  <CardDescription>
+                    Análises automáticas dos seus dados
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {analysis.insights.map((insight, index) => (
+                      <div key={index} className="p-3 bg-blue-50 dark:bg-blue-950/30 rounded-lg border">
+                        <p className="text-sm">{insight}</p>
                       </div>
                     ))}
                   </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Data Quality Suggestions */}
+            {analysis?.dataQuality?.suggestions && analysis.dataQuality.suggestions.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm">Data Quality</CardTitle>
+                  <CardDescription>
+                    Sugestões para melhorar os dados
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {analysis.dataQuality.suggestions.map((suggestion, index) => (
+                      <div key={index} className="p-2 bg-yellow-50 dark:bg-yellow-950/30 rounded border text-sm">
+                        {suggestion}
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Extracted Sections */}
+            {fileInfo?.extractedSections && fileInfo.extractedSections.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm">Seções Extraídas</CardTitle>
+                  <CardDescription>
+                    Diferentes partes encontradas no arquivo
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {fileInfo.extractedSections.map((section: any, index: number) => (
+                      <div key={index} className="p-2 bg-green-50 dark:bg-green-950/30 rounded border">
+                        <div className="font-medium text-sm">{section.name}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {section.rows.length} linhas • {section.headers.length} colunas
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Chart Customizer */}
             {currentSuggestion && (
